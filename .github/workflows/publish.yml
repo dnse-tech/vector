@@ -266,56 +266,84 @@ jobs:
           name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-musleabi
           path: target/artifacts/vector*
 
-  build-apple-darwin-packages:
-    name: Build Vector for ${{ matrix.architecture }}-apple-darwin (.tar.gz)
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+  build-s390x-unknown-linux-gnu-packages:
+    name: Build Vector for s390x-unknown-linux-gnu (.tar.gz, DEB, RPM)
+    runs-on: release-builder-linux
+    timeout-minutes: 60
     needs: generate-publish-metadata
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
       VECTOR_BUILD_DESC: ${{ needs.generate-publish-metadata.outputs.vector_build_desc }}
       CHANNEL: ${{ needs.generate-publish-metadata.outputs.vector_release_channel }}
-    strategy:
-      matrix:
-        include:
-          # Refer to https://docs.github.com/en/actions/using-github-hosted-runners/using-larger-runners/about-larger-runners#about-macos-larger-runners.
-          - architecture: x86_64
-            runner: macos-latest-large
-          - architecture: arm64
-            runner: macos-latest-xlarge
     steps:
-      - name: Verify Runner Architecture
-        run: |
-          ARCH=$(uname -m)
-          echo "Detected architecture: $ARCH"
-          if [ "$ARCH" != "${{ matrix.architecture }}" ]; then
-            echo "Error: Expected ${{ matrix.architecture }} architecture, but got $ARCH!"
-            exit 1
-          fi
       - name: Checkout Vector
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.git_ref }}
-      - name: Bootstrap runner environment (macOS-specific)
-        run: |
-          bash scripts/environment/bootstrap-macos.sh
-          # We usually run `scripts/environment/prepare.sh` but in this case we only need the toolchain.
-          rustup show active-toolchain || rustup toolchain install
-          rustup show
+      - name: Bootstrap runner environment (Ubuntu-specific)
+        run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
+      - name: Bootstrap runner environment (generic)
+        run: bash scripts/environment/prepare.sh
       - name: Build Vector
         env:
-          TARGET: "${{ matrix.architecture }}-apple-darwin"
-          NATIVE_BUILD: true
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          make package
+          DOCKER_PRIVILEGED: "true"
+        run: make package-s390x-unknown-linux-gnu-all
       - name: Stage package artifacts for publish
         uses: actions/upload-artifact@v4
         with:
-          name: vector-${{ env.VECTOR_VERSION }}-${{ matrix.architecture }}-apple-darwin
+          name: vector-${{ env.VECTOR_VERSION }}-s390x-unknown-linux-gnu
           path: target/artifacts/vector*
 
-
+  # build-apple-darwin-packages:
+  #   name: Build Vector for ${{ matrix.architecture }}-apple-darwin (.tar.gz)
+  #   runs-on: ${{ matrix.runner }}
+  #   timeout-minutes: 90
+  #   needs: generate-publish-metadata
+  #   env:
+  #     VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
+  #     VECTOR_BUILD_DESC: ${{ needs.generate-publish-metadata.outputs.vector_build_desc }}
+  #     CHANNEL: ${{ needs.generate-publish-metadata.outputs.vector_release_channel }}
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         # Refer to https://docs.github.com/en/actions/using-github-hosted-runners/using-larger-runners/about-larger-runners#about-macos-larger-runners.
+  #         - architecture: x86_64
+  #           runner: macos-latest-large
+  #         - architecture: arm64
+  #           runner: macos-latest-xlarge
+  #   steps:
+  #     - name: Verify Runner Architecture
+  #       run: |
+  #         ARCH=$(uname -m)
+  #         echo "Detected architecture: $ARCH"
+  #         if [ "$ARCH" != "${{ matrix.architecture }}" ]; then
+  #           echo "Error: Expected ${{ matrix.architecture }} architecture, but got $ARCH!"
+  #           exit 1
+  #         fi
+  #     - name: Checkout Vector
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ inputs.git_ref }}
+  #     - name: Bootstrap runner environment (macOS-specific)
+  #       run: |
+  #         bash scripts/environment/bootstrap-macos.sh
+  #         # We usually run `scripts/environment/prepare.sh` but in this case we only need the toolchain.
+  #         rustup show active-toolchain || rustup toolchain install
+  #         rustup show
+  #     - name: Build Vector
+  #       env:
+  #         TARGET: "${{ matrix.architecture }}-apple-darwin"
+  #         NATIVE_BUILD: true
+  #       run: |
+  #         export PATH="$HOME/.cargo/bin:$PATH"
+  #         make package
+  #     - name: Stage package artifacts for publish
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: vector-${{ env.VECTOR_VERSION }}-${{ matrix.architecture }}-apple-darwin
+  #         path: target/artifacts/vector*
+        
+        
   build-x86_64-pc-windows-msvc-packages:
     name: Build Vector for x86_64-pc-windows-msvc (.zip)
     runs-on: release-builder-windows-2022
@@ -462,36 +490,36 @@ jobs:
         run: |
           ./scripts/verify-install.sh target/artifacts/vector-${{ env.VECTOR_VERSION }}-1.x86_64.rpm
 
-  macos-verify:
-    name: Verify macOS Package
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 5
-    needs:
-      - generate-publish-metadata
-      - build-apple-darwin-packages
-    env:
-      VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-apple-darwin
-            runner: macos-latest-large
-          - target: arm64-apple-darwin
-            runner: macos-latest-xlarge
-    steps:
-      - name: Checkout Vector
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.git_ref }}
-      - name: Download staged package artifacts (${{ matrix.target }})
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-${{ matrix.target }}
-          path: target/artifacts
-      - name: Verify macOS package
-        run: |
-          tar -xvf target/artifacts/vector-${{ env.VECTOR_VERSION }}-${{ matrix.target }}.tar.gz \
-            && vector-${{ matrix.target }}/bin/vector --version
+  # macos-verify:
+  #   name: Verify macOS Package
+  #   runs-on: ${{ matrix.runner }}
+  #   timeout-minutes: 5
+  #   needs:
+  #     - generate-publish-metadata
+  #     - build-apple-darwin-packages
+  #   env:
+  #     VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         - target: x86_64-apple-darwin
+  #           runner: macos-latest-large
+  #         - target: arm64-apple-darwin
+  #           runner: macos-latest-xlarge
+  #   steps:
+  #     - name: Checkout Vector
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ inputs.git_ref }}
+  #     - name: Download staged package artifacts (${{ matrix.target }})
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: vector-${{ env.VECTOR_VERSION }}-${{ matrix.target }}
+  #         path: target/artifacts
+  #     - name: Verify macOS package
+  #       run: |
+  #         tar -xvf target/artifacts/vector-${{ env.VECTOR_VERSION }}-${{ matrix.target }}.tar.gz \
+  #           && vector-${{ matrix.target }}/bin/vector --version
 
   publish-docker:
     name: Publish to Docker
@@ -507,6 +535,7 @@ jobs:
       - build-armv7-unknown-linux-gnueabihf-packages
       - build-arm-unknown-linux-gnueabi-packages
       - build-arm-unknown-linux-musleabi-packages
+      - build-s390x-unknown-linux-gnu-packages
       - deb-verify
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
@@ -578,9 +607,14 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-musleabi
           path: target/artifacts
+      - name: Download staged package artifacts (s390x-unknown-linux-gnu)
+        uses: actions/download-artifact@v4
+        with:
+          name: vector-${{ env.VECTOR_VERSION }}-s390x-unknown-linux-gnu
+          path: target/artifacts
       - name: Build and publish Docker images
         env:
-          PLATFORM: "linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6"
+          PLATFORM: "linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/s390x"
           REPOS: "timberio/vector,ghcr.io/vectordotdev/vector"
         uses: nick-fields/retry@v3
         with:
@@ -599,15 +633,16 @@ jobs:
       - build-x86_64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-gnu-packages
-      - build-apple-darwin-packages
+      # - build-apple-darwin-packages
       - build-x86_64-pc-windows-msvc-packages
       - build-armv7-unknown-linux-musleabihf-packages
       - build-armv7-unknown-linux-gnueabihf-packages
       - build-arm-unknown-linux-gnueabi-packages
       - build-arm-unknown-linux-musleabi-packages
+      - build-s390x-unknown-linux-gnu-packages
       - deb-verify
       - rpm-verify
-      - macos-verify
+      # - macos-verify
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
       CHANNEL: ${{ needs.generate-publish-metadata.outputs.vector_release_channel }}
@@ -636,16 +671,16 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-x86_64-unknown-linux-musl
           path: target/artifacts
-      - name: Download staged package artifacts (x86_64-apple-darwin)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-x86_64-apple-darwin
-          path: target/artifacts
-      - name: Download staged package artifacts (arm64-apple-darwin)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
-          path: target/artifacts
+      # - name: Download staged package artifacts (x86_64-apple-darwin)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-x86_64-apple-darwin
+      #     path: target/artifacts
+      # - name: Download staged package artifacts (arm64-apple-darwin)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
+      #     path: target/artifacts
       - name: Download staged package artifacts (x86_64-pc-windows-msvc)
         uses: actions/download-artifact@v4
         with:
@@ -671,6 +706,11 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-musleabi
           path: target/artifacts
+      - name: Download staged package artifacts (s390x-unknown-linux-gnu)
+        uses: actions/download-artifact@v4
+        with:
+          name: vector-${{ env.VECTOR_VERSION }}-s390x-unknown-linux-gnu
+          path: target/artifacts
       - name: Publish artifacts to S3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CI_AWS_ACCESS_KEY_ID }}
@@ -689,15 +729,16 @@ jobs:
       - build-x86_64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-gnu-packages
-      - build-apple-darwin-packages
+      # - build-apple-darwin-packages
       - build-x86_64-pc-windows-msvc-packages
       - build-armv7-unknown-linux-gnueabihf-packages
       - build-armv7-unknown-linux-musleabihf-packages
       - build-arm-unknown-linux-gnueabi-packages
       - build-arm-unknown-linux-musleabi-packages
+      - build-s390x-unknown-linux-gnu-packages
       - deb-verify
       - rpm-verify
-      - macos-verify
+      # - macos-verify
       - generate-sha256sum
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
@@ -726,16 +767,16 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-x86_64-unknown-linux-musl
           path: target/artifacts
-      - name: Download staged package artifacts (x86_64-apple-darwin)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-x86_64-apple-darwin
-          path: target/artifacts
-      - name: Download staged package artifacts (arm64-apple-darwin)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
-          path: target/artifacts
+      # - name: Download staged package artifacts (x86_64-apple-darwin)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-x86_64-apple-darwin
+      #     path: target/artifacts
+      # - name: Download staged package artifacts (arm64-apple-darwin)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
+      #     path: target/artifacts
       - name: Download staged package artifacts (x86_64-pc-windows-msvc)
         uses: actions/download-artifact@v4
         with:
@@ -765,6 +806,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-musleabi
+          path: target/artifacts
+      - name: Download staged package artifacts (s390x-unknown-linux-gnu)
+        uses: actions/download-artifact@v4
+        with:
+          name: vector-${{ env.VECTOR_VERSION }}-s390x-unknown-linux-gnu
           path: target/artifacts
       - name: Publish release to GitHub
         env:
@@ -802,12 +848,12 @@ jobs:
       - build-x86_64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-gnu-packages
-      - build-apple-darwin-packages
       - build-x86_64-pc-windows-msvc-packages
       - build-armv7-unknown-linux-gnueabihf-packages
       - build-armv7-unknown-linux-musleabihf-packages
       - build-arm-unknown-linux-gnueabi-packages
       - build-arm-unknown-linux-musleabi-packages
+      - build-s390x-unknown-linux-gnu-packages
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
     steps:
@@ -835,16 +881,16 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-x86_64-unknown-linux-musl
           path: target/artifacts
-      - name: Download staged package artifacts (x86_64-apple-darwin)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-x86_64-apple-darwin
-          path: target/artifacts
-      - name: Download staged package artifacts (arm64-apple-darwin)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
-          path: target/artifacts
+      # - name: Download staged package artifacts (x86_64-apple-darwin)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-x86_64-apple-darwin
+      #     path: target/artifacts
+      # - name: Download staged package artifacts (arm64-apple-darwin)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
+      #     path: target/artifacts
       - name: Download staged package artifacts (x86_64-pc-windows-msvc)
         uses: actions/download-artifact@v4
         with:
@@ -860,16 +906,16 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-armv7-unknown-linux-musleabihf
           path: target/artifacts
-      - name: Download staged package artifacts (arm-unknown-linux-gnueabi)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-gnueabi
-          path: target/artifacts
-      - name: Download staged package artifacts (arm-unknown-linux-musleabi)
-        uses: actions/download-artifact@v4
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-musleabi
-          path: target/artifacts
+      # - name: Download staged package artifacts (arm-unknown-linux-gnueabi)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-gnueabi
+      #     path: target/artifacts
+      # - name: Download staged package artifacts (arm-unknown-linux-musleabi)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm-unknown-linux-musleabi
+      #     path: target/artifacts
       - name: Generate SHA256 checksums for artifacts
         run: make sha256sum
       - name: Stage checksum for publish
