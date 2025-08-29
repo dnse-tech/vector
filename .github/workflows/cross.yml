@@ -18,13 +18,14 @@ jobs:
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
-          - aarch64-unknown-linux-gnu
-          - aarch64-unknown-linux-musl
-          - armv7-unknown-linux-gnueabihf
-          - armv7-unknown-linux-musleabihf
-          - arm-unknown-linux-gnueabi
-          - arm-unknown-linux-musleabi
           - s390x-unknown-linux-gnu
+          # Commented out ARM/AARCH64 targets - not needed
+          # - aarch64-unknown-linux-gnu
+          # - aarch64-unknown-linux-musl
+          # - armv7-unknown-linux-gnueabihf
+          # - armv7-unknown-linux-musleabihf
+          # - arm-unknown-linux-gnueabi
+          # - arm-unknown-linux-musleabi
     steps:
       - name: (PR review) Set latest commit status as pending
         if: ${{ github.event_name == 'pull_request_review' }}

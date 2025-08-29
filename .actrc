@@ -1,0 +1,14 @@
+# Act configuration for Vector s390x builds
+# Default runner image for Linux
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-24.04=catthehacker/ubuntu:act-24.04
+-P release-builder-linux=catthehacker/ubuntu:act-24.04
+
+# Use Docker as container tool
+--container-daemon-socket /var/run/docker.sock
+
+# Enable verbose output for debugging
+--verbose
+
+# Set default event type
+--eventpath .github/workflows/event.json
