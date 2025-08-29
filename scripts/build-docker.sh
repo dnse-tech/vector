@@ -20,10 +20,10 @@ IFS=, read -ra REPO_LIST <<< "$REPOS"
 
 IFS=, read -ra REQUESTED_PLATFORMS <<< "$PLATFORM"
 declare -A SUPPORTED_PLATFORMS=(
-  [debian]="linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8"
-  [alpine]="linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8"
-  [distroless-static]="linux/amd64,linux/arm/v7,linux/arm64/v8"
-  [distroless-libc]="linux/amd64,linux/arm/v7,linux/arm64/v8"
+  [debian]="linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/s390x"
+  [alpine]="linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8,linux/s390x"
+  [distroless-static]="linux/amd64,linux/arm/v7,linux/arm64/v8,linux/s390x"
+  [distroless-libc]="linux/amd64,linux/arm/v7,linux/arm64/v8,linux/s390x"
 )
 
 #
