@@ -1,9 +1,11 @@
+#![allow(unsafe_op_in_unsafe_fn)] // TODO review ShallowCopy usage code and fix properly.
+
+use crate::SourceSender;
+use crate::enrichment_tables::memory::MemoryConfig;
 use crate::enrichment_tables::memory::internal_events::{
     MemoryEnrichmentTableFlushed, MemoryEnrichmentTableInsertFailed, MemoryEnrichmentTableInserted,
     MemoryEnrichmentTableRead, MemoryEnrichmentTableReadFailed, MemoryEnrichmentTableTtlExpired,
 };
-use crate::enrichment_tables::memory::MemoryConfig;
-use crate::SourceSender;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -131,20 +133,19 @@ impl Memory {
                 update_time: now.into(),
             };
             let new_entry_size = new_entry_key.size_of() + new_entry.size_of();
-            if let Some(max_byte_size) = self.config.max_byte_size {
-                if writer
+            if let Some(max_byte_size) = self.config.max_byte_size
+                && writer
                     .metadata
                     .byte_size
                     .saturating_add(new_entry_size as u64)
                     > max_byte_size
-                {
-                    // Reject new entries
-                    emit!(MemoryEnrichmentTableInsertFailed {
-                        key: &new_entry_key,
-                        include_key_metric_tag: self.config.internal_metrics.include_key_tag
-                    });
-                    continue;
-                }
+            {
+                // Reject new entries
+                emit!(MemoryEnrichmentTableInsertFailed {
+                    key: &new_entry_key,
+                    include_key_metric_tag: self.config.internal_metrics.include_key_tag
+                });
+                continue;
             }
             writer.metadata.byte_size = writer
                 .metadata
@@ -171,17 +172,17 @@ impl Memory {
         // Refresh will happen only after we manually invoke it after iteration
         if let Some(reader) = self.get_read_handle().read() {
             for (k, v) in reader.iter() {
-                if let Some(entry) = v.get_one() {
-                    if entry.expired(now, self.config.ttl) {
-                        // Byte size is not reduced at this point, because the actual deletion
-                        // will only happen at refresh time
-                        writer.write_handle.empty(k.clone());
-                        emit!(MemoryEnrichmentTableTtlExpired {
-                            key: k,
-                            include_key_metric_tag: self.config.internal_metrics.include_key_tag
-                        });
-                        needs_flush = true;
-                    }
+                if let Some(entry) = v.get_one()
+                    && entry.expired(now, self.config.ttl)
+                {
+                    // Byte size is not reduced at this point, because the actual deletion
+                    // will only happen at refresh time
+                    writer.write_handle.empty(k.clone());
+                    emit!(MemoryEnrichmentTableTtlExpired {
+                        key: k,
+                        include_key_metric_tag: self.config.internal_metrics.include_key_tag
+                    });
+                    needs_flush = true;
                 }
             }
         };
@@ -243,9 +244,10 @@ impl Table for Memory {
         case: Case,
         condition: &'a [Condition<'a>],
         select: Option<&'a [String]>,
+        wildcard: Option<&Value>,
         index: Option<IndexHandle>,
     ) -> Result<ObjectMap, String> {
-        let mut rows = self.find_table_rows(case, condition, select, index)?;
+        let mut rows = self.find_table_rows(case, condition, select, wildcard, index)?;
 
         match rows.pop() {
             Some(row) if rows.is_empty() => Ok(row),
@@ -259,6 +261,7 @@ impl Table for Memory {
         _case: Case,
         condition: &'a [Condition<'a>],
         _select: Option<&'a [String]>,
+        _wildcard: Option<&Value>,
         _index: Option<IndexHandle>,
     ) -> Result<Vec<ObjectMap>, String> {
         match condition.first() {
@@ -369,8 +372,9 @@ impl StreamSink<Event> for Memory {
 
 #[cfg(test)]
 mod tests {
-    use futures::{future::ready, StreamExt};
+    use futures::{StreamExt, future::ready};
     use futures_util::stream;
+    use std::slice::from_ref;
     use std::{num::NonZeroU64, time::Duration};
     use tokio::time;
 
@@ -387,8 +391,8 @@ mod tests {
         },
         event::{Event, LogEvent},
         test_util::components::{
-            run_and_assert_sink_compliance, run_and_assert_source_compliance, SINK_TAGS,
-            SOURCE_TAGS,
+            SINK_TAGS, SOURCE_TAGS, run_and_assert_sink_compliance,
+            run_and_assert_source_compliance,
         },
     };
 
@@ -414,7 +418,7 @@ mod tests {
                 ("ttl".into(), Value::from(memory.config.ttl)),
                 ("value".into(), Value::from(5)),
             ])),
-            memory.find_table_row(Case::Sensitive, &[condition], None, None)
+            memory.find_table_row(Case::Sensitive, &[condition], None, None, None)
         );
     }
 
@@ -446,7 +450,7 @@ mod tests {
                 ("ttl".into(), Value::from(ttl - secs_to_subtract)),
                 ("value".into(), Value::from(5)),
             ])),
-            memory.find_table_row(Case::Sensitive, &[condition], None, None)
+            memory.find_table_row(Case::Sensitive, &[condition], None, None, None)
         );
     }
 
@@ -479,7 +483,7 @@ mod tests {
                 ("ttl".into(), Value::from(0)),
                 ("value".into(), Value::from(5)),
             ])),
-            memory.find_table_row(Case::Sensitive, &[condition.clone()], None, None)
+            memory.find_table_row(Case::Sensitive, from_ref(&condition), None, None, None)
         );
 
         // Force scan
@@ -487,11 +491,13 @@ mod tests {
         memory.scan(writer);
 
         // The value is not present anymore
-        assert!(memory
-            .find_table_rows(Case::Sensitive, &[condition], None, None)
-            .unwrap()
-            .pop()
-            .is_none());
+        assert!(
+            memory
+                .find_table_rows(Case::Sensitive, &[condition], None, None, None)
+                .unwrap()
+                .pop()
+                .is_none()
+        );
     }
 
     #[test]
@@ -508,11 +514,13 @@ mod tests {
             value: Value::from("test_key"),
         };
 
-        assert!(memory
-            .find_table_rows(Case::Sensitive, &[condition], None, None)
-            .unwrap()
-            .pop()
-            .is_none());
+        assert!(
+            memory
+                .find_table_rows(Case::Sensitive, &[condition], None, None, None)
+                .unwrap()
+                .pop()
+                .is_none()
+        );
     }
 
     #[test]
@@ -541,7 +549,7 @@ mod tests {
                 ("ttl".into(), Value::from(ttl / 2)),
                 ("value".into(), Value::from(5)),
             ])),
-            memory.find_table_row(Case::Sensitive, &[condition.clone()], None, None)
+            memory.find_table_row(Case::Sensitive, from_ref(&condition), None, None, None)
         );
 
         memory.handle_value(ObjectMap::from([("test_key".into(), Value::from(5))]));
@@ -552,7 +560,7 @@ mod tests {
                 ("ttl".into(), Value::from(ttl)),
                 ("value".into(), Value::from(5)),
             ])),
-            memory.find_table_row(Case::Sensitive, &[condition], None, None)
+            memory.find_table_row(Case::Sensitive, &[condition], None, None, None)
         );
     }
 
@@ -568,11 +576,13 @@ mod tests {
             value: Value::from("test_key"),
         };
 
-        assert!(memory
-            .find_table_rows(Case::Sensitive, &[condition], None, None)
-            .unwrap()
-            .pop()
-            .is_none());
+        assert!(
+            memory
+                .find_table_rows(Case::Sensitive, &[condition], None, None, None)
+                .unwrap()
+                .pop()
+                .is_none()
+        );
     }
 
     #[test]
@@ -598,23 +608,27 @@ mod tests {
                     value: Value::from("test_key")
                 }],
                 None,
+                None,
                 None
             )
         );
 
-        assert!(memory
-            .find_table_rows(
-                Case::Sensitive,
-                &[Condition::Equals {
-                    field: "key",
-                    value: Value::from("rejected_key")
-                }],
-                None,
-                None
-            )
-            .unwrap()
-            .pop()
-            .is_none());
+        assert!(
+            memory
+                .find_table_rows(
+                    Case::Sensitive,
+                    &[Condition::Equals {
+                        field: "key",
+                        value: Value::from("rejected_key")
+                    }],
+                    None,
+                    None,
+                    None
+                )
+                .unwrap()
+                .pop()
+                .is_none()
+        );
     }
 
     #[test]
@@ -626,11 +640,13 @@ mod tests {
             value: Value::from("test_key"),
         };
 
-        assert!(memory
-            .find_table_rows(Case::Sensitive, &[condition], None, None)
-            .unwrap()
-            .pop()
-            .is_none());
+        assert!(
+            memory
+                .find_table_rows(Case::Sensitive, &[condition], None, None, None)
+                .unwrap()
+                .pop()
+                .is_none()
+        );
     }
 
     #[tokio::test]
