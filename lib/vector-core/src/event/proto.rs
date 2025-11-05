@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use chrono::TimeZone;
 use ordered_float::NotNan;
@@ -679,8 +678,7 @@ impl From<Metadata> for EventMetadata {
                 Err(error) => {
                     error!(
                         message = "Failed to parse source_event_id: {}",
-                        %error,
-                        internal_log_rate_limit = true
+                        %error
                     );
                     None
                 }

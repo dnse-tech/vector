@@ -1,7 +1,4 @@
-use super::Deserializer;
-use crate::encoding::AvroSerializerOptions;
-use bytes::Buf;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use chrono::Utc;
 use lookup::event_path;
 use serde::{Deserialize, Serialize};
@@ -13,6 +10,9 @@ use vector_core::{
     schema,
 };
 use vrl::value::KeyString;
+
+use super::Deserializer;
+use crate::encoding::AvroSerializerOptions;
 
 type VrlValue = vrl::value::Value;
 type AvroValue = apache_avro::types::Value;
@@ -230,6 +230,15 @@ pub fn try_from(value: AvroValue) -> vector_common::Result<VrlValue> {
         AvroValue::Uuid(uuid) => Ok(VrlValue::from(uuid.as_hyphenated().to_string())),
         AvroValue::LocalTimestampMillis(ts_millis) => Ok(VrlValue::from(ts_millis)),
         AvroValue::LocalTimestampMicros(ts_micros) => Ok(VrlValue::from(ts_micros)),
+        AvroValue::BigDecimal(_) => Err(vector_common::Error::from(
+            "AvroValue::BigDecimal is not supported",
+        )),
+        AvroValue::TimestampNanos(_) => Err(vector_common::Error::from(
+            "AvroValue::TimestampNanos is not supported",
+        )),
+        AvroValue::LocalTimestampNanos(_) => Err(vector_common::Error::from(
+            "AvroValue::LocalTimestampNanos is not supported",
+        )),
     }
 }
 

@@ -1,16 +1,17 @@
 #![allow(dead_code)] // TODO requires optional feature compilation
 
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter, Result};
+use std::{
+    error::Error,
+    fmt::{Debug, Display, Formatter, Result},
+};
 
 use metrics::{counter, histogram};
 use tokio_tungstenite::tungstenite::error::Error as TungsteniteError;
-use vector_lib::internal_event::InternalEvent;
-
 use vector_common::{
     internal_event::{error_stage, error_type},
     json_size::JsonSize,
 };
+use vector_lib::internal_event::InternalEvent;
 
 pub const PROTOCOL: &str = "websocket";
 
@@ -41,7 +42,6 @@ impl InternalEvent for WebSocketConnectionFailedError {
             error_code = "websocket_connection_error",
             error_type = error_type::CONNECTION_FAILED,
             stage = error_stage::SENDING,
-            internal_log_rate_limit = true,
         );
         counter!(
             "component_errors_total",
@@ -84,7 +84,6 @@ impl InternalEvent for WebSocketConnectionError {
             error_code = "websocket_connection_error",
             error_type = error_type::WRITER_FAILED,
             stage = error_stage::SENDING,
-            internal_log_rate_limit = true,
         );
         counter!(
             "component_errors_total",
@@ -201,7 +200,6 @@ impl InternalEvent for WebSocketReceiveError<'_> {
             error_code = "websocket_receive_error",
             error_type = error_type::CONNECTION_FAILED,
             stage = error_stage::PROCESSING,
-            internal_log_rate_limit = true,
         );
         counter!(
             "component_errors_total",
@@ -231,7 +229,6 @@ impl InternalEvent for WebSocketSendError<'_> {
             error_code = "websocket_send_error",
             error_type = error_type::CONNECTION_FAILED,
             stage = error_stage::PROCESSING,
-            internal_log_rate_limit = true,
         );
         counter!(
             "component_errors_total",

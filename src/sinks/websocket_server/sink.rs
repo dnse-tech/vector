@@ -4,6 +4,24 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use super::{
+    WebSocketListenerSinkConfig,
+    buffering::MessageBufferingConfig,
+    config::{ExtraMetricTagsConfig, SubProtocolConfig},
+};
+use crate::{
+    codecs::{Encoder, Transformer},
+    common::http::server_auth::HttpServerAuthMatcher,
+    internal_events::{
+        ConnectionOpen, OpenGauge, WebSocketListenerConnectionEstablished,
+        WebSocketListenerConnectionFailedError, WebSocketListenerConnectionShutdown,
+        WebSocketListenerMessageSent, WebSocketListenerSendError,
+    },
+    sinks::{
+        prelude::*,
+        websocket_server::buffering::{BufferReplayRequest, WsMessageBufferConfig},
+    },
+};
 use async_trait::async_trait;
 use bytes::BytesMut;
 use futures::{
@@ -31,26 +49,6 @@ use vector_lib::{
     },
     sink::StreamSink,
     tls::{MaybeTlsIncomingStream, MaybeTlsListener, MaybeTlsSettings},
-};
-
-use crate::{
-    codecs::{Encoder, Transformer},
-    common::http::server_auth::HttpServerAuthMatcher,
-    internal_events::{
-        ConnectionOpen, OpenGauge, WebSocketListenerConnectionEstablished,
-        WebSocketListenerConnectionFailedError, WebSocketListenerConnectionShutdown,
-        WebSocketListenerMessageSent, WebSocketListenerSendError,
-    },
-    sinks::{
-        prelude::*,
-        websocket_server::buffering::{BufferReplayRequest, WsMessageBufferConfig},
-    },
-};
-
-use super::{
-    WebSocketListenerSinkConfig,
-    buffering::MessageBufferingConfig,
-    config::{ExtraMetricTagsConfig, SubProtocolConfig},
 };
 
 pub struct WebSocketListenerSink {
@@ -85,17 +83,6 @@ impl WebSocketListenerSink {
             message_buffering: config.message_buffering,
             subprotocol: config.subprotocol,
         })
-    }
-
-    const fn should_encode_as_binary(&self) -> bool {
-        use vector_lib::codecs::encoding::Serializer::{
-            Avro, Cef, Csv, Gelf, Json, Logfmt, Native, NativeJson, Protobuf, RawMessage, Text,
-        };
-
-        match self.encoder.serializer() {
-            RawMessage(_) | Avro(_) | Native(_) | Protobuf(_) => true,
-            Cef(_) | Csv(_) | Logfmt(_) | Gelf(_) | Json(_) | Text(_) | NativeJson(_) => false,
-        }
     }
 
     fn extract_extra_tags(
@@ -363,7 +350,7 @@ impl StreamSink<Event> for WebSocketListenerSink {
 
         let bytes_sent = register!(BytesSent::from(Protocol("websocket".into())));
         let events_sent = register!(EventsSent::from(Output(None)));
-        let encode_as_binary = self.should_encode_as_binary();
+        let encode_as_binary = self.encoder.serializer().is_binary();
 
         let listener = self.tls.bind(&self.address).await.map_err(|_| ())?;
 
@@ -445,12 +432,12 @@ impl StreamSink<Event> for WebSocketListenerSink {
 
 #[cfg(test)]
 mod tests {
+    use std::{future::ready, num::NonZeroUsize};
+
     use futures::{SinkExt, Stream, StreamExt, channel::mpsc::UnboundedReceiver};
     use futures_util::stream;
-    use std::{future::ready, num::NonZeroUsize};
-    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-
     use tokio::{task::JoinHandle, time};
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
     use vector_lib::{
         codecs::{
             JsonDeserializerConfig,
@@ -462,7 +449,6 @@ mod tests {
     };
 
     use super::*;
-
     use crate::{
         event::{Event, LogEvent},
         sinks::websocket_server::{

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     iter,
     sync::{
         Arc,
@@ -7,9 +6,21 @@ use std::{
     },
 };
 
+use futures::{StreamExt, future, stream};
+use tokio::{
+    task::yield_now,
+    time::{Duration, sleep},
+};
+use vector_lib::{
+    buffers::{BufferConfig, BufferType, WhenFull},
+    config::{ComponentKey, OutputId},
+};
+
 use crate::{
     config::{Config, ConfigDiff, SinkOuter},
     event::{Event, EventArray, EventContainer, LogEvent, into_event_stream},
+    schema::Definition,
+    source_sender::SourceSenderItem,
     test_util::{
         mock::{
             basic_sink, basic_sink_failing_healthcheck, basic_sink_with_data, basic_source,
@@ -18,17 +29,8 @@ use crate::{
         },
         start_topology, trace_init,
     },
-    topology::{RunningTopology, TopologyPieces},
+    topology::{RunningTopology, builder::TopologyPiecesBuilder},
 };
-use crate::{schema::Definition, source_sender::SourceSenderItem};
-use futures::{StreamExt, future, stream};
-use tokio::{
-    task::yield_now,
-    time::{Duration, sleep},
-};
-use vector_lib::buffers::{BufferConfig, BufferType, WhenFull};
-use vector_lib::config::ComponentKey;
-use vector_lib::config::OutputId;
 
 mod backpressure;
 mod compliance;
@@ -943,11 +945,10 @@ async fn topology_transform_error_definition() {
 
     let config = config.build().unwrap();
     let diff = ConfigDiff::initial(&config);
-    let errors =
-        match TopologyPieces::build(&config, &diff, HashMap::new(), Default::default()).await {
-            Ok(_) => panic!("build pieces should not succeed"),
-            Err(err) => err,
-        };
+    let errors = match TopologyPiecesBuilder::new(&config, &diff).build().await {
+        Ok(_) => panic!("build pieces should not succeed"),
+        Err(err) => err,
+    };
 
     assert_eq!(
         r#"Transform "transform": It all went horribly wrong"#,

@@ -3,10 +3,12 @@ pub mod udp;
 #[cfg(unix)]
 mod unix;
 
-use vector_lib::codecs::decoding::DeserializerConfig;
-use vector_lib::config::{LegacyKey, LogNamespace, log_schema};
-use vector_lib::configurable::configurable_component;
-use vector_lib::lookup::{lookup_v2::OptionalValuePath, owned_value_path};
+use vector_lib::{
+    codecs::decoding::DeserializerConfig,
+    config::{LegacyKey, LogNamespace, log_schema},
+    configurable::configurable_component,
+    lookup::{lookup_v2::OptionalValuePath, owned_value_path},
+};
 use vrl::value::{Kind, kind::Collection};
 
 use crate::{
@@ -316,8 +318,6 @@ pub(crate) fn default_host_key() -> OptionalValuePath {
 
 #[cfg(test)]
 mod test {
-    use approx::assert_relative_eq;
-    use portpicker::pick_unused_port;
     use std::{
         collections::HashMap,
         net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
@@ -328,8 +328,10 @@ mod test {
         thread,
     };
 
+    use approx::assert_relative_eq;
     use bytes::{BufMut, Bytes, BytesMut};
     use futures::{StreamExt, stream};
+    use portpicker::pick_unused_port;
     use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
     use serde_json::json;
     use tokio::{
@@ -343,12 +345,12 @@ mod test {
     use vector_lib::codecs::{
         CharacterDelimitedDecoderConfig, decoding::CharacterDelimitedDecoderOptions,
     };
-    use vector_lib::codecs::{GelfDeserializerConfig, NewlineDelimitedDecoderConfig};
-    use vector_lib::event::EventContainer;
-    use vector_lib::lookup::{lookup_v2::OptionalValuePath, owned_value_path, path};
-    use vrl::value::ObjectMap;
-    use vrl::{btreemap, value};
-
+    use vector_lib::{
+        codecs::{GelfDeserializerConfig, NewlineDelimitedDecoderConfig},
+        event::EventContainer,
+        lookup::{lookup_v2::OptionalValuePath, owned_value_path, path},
+    };
+    use vrl::{btreemap, value, value::ObjectMap};
     #[cfg(unix)]
     use {
         super::{Mode, unix::UnixConfig},
@@ -1451,9 +1453,12 @@ mod test {
             init_udp_with_config(tx, config).await;
             drop(guard);
 
-            let from = bind_unused_udp_any();
             // Send packet to multicast address
-            let from = send_lines_udp_from(from, multicast_socket_address, ["test".to_string()]);
+            let _ = send_lines_udp_from(
+                bind_unused_udp_any(),
+                multicast_socket_address,
+                ["test".to_string()],
+            );
             let event = rx.next().await.expect("must receive an event");
             assert_eq!(
                 event.as_log()[log_schema().message_key().unwrap().to_string()],
@@ -1464,7 +1469,9 @@ mod test {
             // therefore we connect to `127.0.0.1` instead (the socket is listening at `0.0.0.0`)
             let to = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), socket_address.port());
             // Send packet to unicast address
-            send_lines_udp_from(from, to, ["test".to_string()]);
+            // Use a fresh socket - on macOS, a socket bound to 0.0.0.0 that sends to multicast
+            // cannot subsequently send unicast packets that the listener receives
+            send_lines_udp_from(bind_unused_udp(), to, ["test".to_string()]);
             let event = rx.next().await.expect("must receive an event");
             assert_eq!(
                 event.as_log()[log_schema().message_key().unwrap().to_string()],

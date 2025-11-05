@@ -19,17 +19,21 @@ use tokio::{
     sync::{Mutex, Notify, mpsc, oneshot},
 };
 use tokio_util::codec::Decoder;
+use vector_lib::{
+    EstimatedJsonEncodedSizeOf,
+    codecs::{
+        CharacterDelimitedEncoder,
+        encoding::{Framer, Serializer::Json},
+    },
+    config::LogNamespace,
+    event::Event,
+};
 
+use super::{ResourceCodec, ResourceDirection, TestEvent, encode_test_event};
 use crate::components::validation::{
     RunnerMetrics,
     sync::{Configuring, TaskCoordinator},
 };
-use vector_lib::{
-    EstimatedJsonEncodedSizeOf, codecs::CharacterDelimitedEncoder, codecs::encoding::Framer,
-    codecs::encoding::Serializer::Json, config::LogNamespace, event::Event,
-};
-
-use super::{ResourceCodec, ResourceDirection, TestEvent, encode_test_event};
 
 /// An HTTP resource.
 #[derive(Clone)]
@@ -336,14 +340,12 @@ impl HttpResourceOutputContext<'_> {
                                     Ok(Some((events, decoded_byte_size))) => {
                                         if should_reject {
                                             info!(
-                                                internal_log_rate_limit = true,
                                                 "HTTP server external output resource decoded {decoded_byte_size:?} bytes but test case configured to reject.",
                                             );
                                         } else {
                                             let mut output_runner_metrics =
                                                 output_runner_metrics.lock().await;
                                             info!(
-                                                internal_log_rate_limit = true,
                                                 "HTTP server external output resource decoded {decoded_byte_size:?} bytes."
                                             );
 
