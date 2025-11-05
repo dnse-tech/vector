@@ -46,7 +46,7 @@ jobs:
 
   build-x86_64-unknown-linux-musl-packages:
     name: Build Vector for x86_64-unknown-linux-musl (.tar.gz)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -72,7 +72,7 @@ jobs:
 
   build-x86_64-unknown-linux-gnu-packages:
     name: Build Vector for x86_64-unknown-linux-gnu (.tar.gz, DEB, RPM)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -98,7 +98,7 @@ jobs:
 
   build-aarch64-unknown-linux-musl-packages:
     name: Build Vector for aarch64-unknown-linux-musl (.tar.gz)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -126,7 +126,7 @@ jobs:
 
   build-aarch64-unknown-linux-gnu-packages:
     name: Build Vector for aarch64-unknown-linux-gnu (.tar.gz)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -154,7 +154,7 @@ jobs:
 
   build-armv7-unknown-linux-gnueabihf-packages:
     name: Build Vector for armv7-unknown-linux-gnueabihf (.tar.gz)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -182,7 +182,7 @@ jobs:
 
   build-armv7-unknown-linux-musleabihf-packages:
     name: Build Vector for armv7-unknown-linux-musleabihf (.tar.gz)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -210,7 +210,7 @@ jobs:
 
   build-arm-unknown-linux-gnueabi-packages:
     name: Build Vector for arm-unknown-linux-gnueabi (.tar.gz)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -238,7 +238,7 @@ jobs:
 
   build-arm-unknown-linux-musleabi-packages:
     name: Build Vector for arm-unknown-linux-musleabi (.tar.gz)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -266,7 +266,7 @@ jobs:
 
   build-s390x-unknown-linux-gnu-packages:
     name: Build Vector for s390x-unknown-linux-gnu (.tar.gz, DEB, RPM)
-    runs-on: release-builder-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -297,6 +297,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     needs: generate-publish-metadata
+    if: false  # Disabled: no macOS runners available in fork
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
       VECTOR_BUILD_DESC: ${{ needs.generate-publish-metadata.outputs.vector_build_desc }}
@@ -489,6 +490,7 @@ jobs:
     name: Verify macOS Package
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 5
+    if: false  # Disabled: no macOS runners available in fork
     needs:
       - generate-publish-metadata
       - build-apple-darwin-packages
@@ -627,7 +629,6 @@ jobs:
       - build-x86_64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-gnu-packages
-      - build-apple-darwin-packages
       - build-x86_64-pc-windows-msvc-packages
       - build-armv7-unknown-linux-musleabihf-packages
       - build-armv7-unknown-linux-gnueabihf-packages
@@ -636,7 +637,6 @@ jobs:
       - build-s390x-unknown-linux-gnu-packages
       - deb-verify
       - rpm-verify
-      - macos-verify
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
       CHANNEL: ${{ needs.generate-publish-metadata.outputs.vector_release_channel }}
@@ -665,11 +665,12 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-x86_64-unknown-linux-musl
           path: target/artifacts
-      - name: Download staged package artifacts (arm64-apple-darwin)
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
-          path: target/artifacts
+      # Disabled: no macOS runners available in fork
+      # - name: Download staged package artifacts (arm64-apple-darwin)
+      #   uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
+      #     path: target/artifacts
       - name: Download staged package artifacts (x86_64-pc-windows-msvc)
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
@@ -718,7 +719,6 @@ jobs:
       - build-x86_64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-gnu-packages
-      - build-apple-darwin-packages
       - build-x86_64-pc-windows-msvc-packages
       - build-armv7-unknown-linux-gnueabihf-packages
       - build-armv7-unknown-linux-musleabihf-packages
@@ -727,7 +727,6 @@ jobs:
       - build-s390x-unknown-linux-gnu-packages
       - deb-verify
       - rpm-verify
-      - macos-verify
       - generate-sha256sum
     env:
       VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
@@ -756,11 +755,12 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-x86_64-unknown-linux-musl
           path: target/artifacts
-      - name: Download staged package artifacts (arm64-apple-darwin)
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
-          path: target/artifacts
+      # Disabled: no macOS runners available in fork
+      # - name: Download staged package artifacts (arm64-apple-darwin)
+      #   uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
+      #     path: target/artifacts
       - name: Download staged package artifacts (x86_64-pc-windows-msvc)
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
@@ -811,7 +811,6 @@ jobs:
       - build-x86_64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-musl-packages
       - build-aarch64-unknown-linux-gnu-packages
-      - build-apple-darwin-packages
       - build-x86_64-pc-windows-msvc-packages
       - build-armv7-unknown-linux-gnueabihf-packages
       - build-armv7-unknown-linux-musleabihf-packages
@@ -845,11 +844,12 @@ jobs:
         with:
           name: vector-${{ env.VECTOR_VERSION }}-x86_64-unknown-linux-musl
           path: target/artifacts
-      - name: Download staged package artifacts (arm64-apple-darwin)
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
-          path: target/artifacts
+      # Disabled: no macOS runners available in fork
+      # - name: Download staged package artifacts (arm64-apple-darwin)
+      #   uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      #   with:
+      #     name: vector-${{ env.VECTOR_VERSION }}-arm64-apple-darwin
+      #     path: target/artifacts
       - name: Download staged package artifacts (x86_64-pc-windows-msvc)
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
