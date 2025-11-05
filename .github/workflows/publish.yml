@@ -62,6 +62,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-x86_64-unknown-linux-musl
       - name: Build Vector
         run: make package-x86_64-unknown-linux-musl-all
       - name: Stage package artifacts for publish
@@ -88,6 +90,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-x86_64-unknown-linux-gnu
       - name: Build Vector
         run: make package-x86_64-unknown-linux-gnu-all
       - name: Stage package artifacts for publish
@@ -114,6 +118,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-aarch64-unknown-linux-musl
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"
@@ -142,6 +148,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-aarch64-unknown-linux-gnu
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"
@@ -170,6 +178,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-armv7-unknown-linux-gnueabihf
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"
@@ -198,6 +208,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-armv7-unknown-linux-musleabihf
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"
@@ -226,6 +238,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-arm-unknown-linux-gnueabi
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"
@@ -254,6 +268,8 @@ jobs:
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-arm-unknown-linux-musleabi
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"
@@ -281,7 +297,9 @@ jobs:
       - name: Bootstrap runner environment (Ubuntu-specific)
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
-        run: bash scripts/environment/prepare.sh
+        run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-s390x-unknown-linux-gnu
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"

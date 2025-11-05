@@ -11,33 +11,29 @@ passthrough = [
     "JEMALLOC_SYS_WITH_LG_HUGEPAGE",
 ]
 
-# Using default cross-rs images for fork compatibility
-# Custom images (vector-cross-env:*) disabled - they need to be built first
-# The default cross-rs images from ghcr.io/cross-rs/ are used instead
+[target.x86_64-unknown-linux-gnu]
+image = "vector-cross-env:x86_64-unknown-linux-gnu"
 
-# [target.x86_64-unknown-linux-gnu]
-# image = "vector-cross-env:x86_64-unknown-linux-gnu"
+[target.aarch64-unknown-linux-gnu]
+image = "vector-cross-env:aarch64-unknown-linux-gnu"
 
-# [target.aarch64-unknown-linux-gnu]
-# image = "vector-cross-env:aarch64-unknown-linux-gnu"
+[target.x86_64-unknown-linux-musl]
+image = "vector-cross-env:x86_64-unknown-linux-musl"
 
-# [target.x86_64-unknown-linux-musl]
-# image = "vector-cross-env:x86_64-unknown-linux-musl"
+[target.aarch64-unknown-linux-musl]
+image = "vector-cross-env:aarch64-unknown-linux-musl"
 
-# [target.aarch64-unknown-linux-musl]
-# image = "vector-cross-env:aarch64-unknown-linux-musl"
+[target.armv7-unknown-linux-gnueabihf]
+image = "vector-cross-env:armv7-unknown-linux-gnueabihf"
 
-# [target.armv7-unknown-linux-gnueabihf]
-# image = "vector-cross-env:armv7-unknown-linux-gnueabihf"
+[target.armv7-unknown-linux-musleabihf]
+image = "vector-cross-env:armv7-unknown-linux-musleabihf"
 
-# [target.armv7-unknown-linux-musleabihf]
-# image = "vector-cross-env:armv7-unknown-linux-musleabihf"
+[target.arm-unknown-linux-gnueabi]
+image = "vector-cross-env:arm-unknown-linux-gnueabi"
 
-# [target.arm-unknown-linux-gnueabi]
-# image = "vector-cross-env:arm-unknown-linux-gnueabi"
+[target.arm-unknown-linux-musleabi]
+image = "vector-cross-env:arm-unknown-linux-musleabi"
 
-# [target.arm-unknown-linux-musleabi]
-# image = "vector-cross-env:arm-unknown-linux-musleabi"
-
-# [target.s390x-unknown-linux-gnu]
-# image = "vector-cross-env:s390x-unknown-linux-gnu"
+[target.s390x-unknown-linux-gnu]
+image = "vector-cross-env:s390x-unknown-linux-gnu"
