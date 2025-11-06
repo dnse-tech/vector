@@ -12,7 +12,7 @@ on:
 
 jobs:
   Release:
-    uses: ./.github/workflows/publish-simplified.yml
+    uses: ./.github/workflows/publish.yml
     with:
       git_ref: ${{ github.ref }}
       channel: release
