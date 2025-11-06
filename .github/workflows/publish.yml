@@ -15,6 +15,21 @@ on:
       channel:
         type: string
         required: true
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'Git ref to build (e.g., refs/heads/feat/add-s390x-support)'
+        required: true
+        default: 'refs/heads/feat/add-s390x-support'
+      channel:
+        description: 'Release channel (release/nightly/custom)'
+        required: true
+        default: 'custom'
+        type: choice
+        options:
+          - release
+          - nightly
+          - custom
 
 env:
   VERBOSE: true
