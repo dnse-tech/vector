@@ -112,7 +112,9 @@ jobs:
       - name: Bootstrap runner environment (Ubuntu-specific)
         run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
-        run: bash scripts/environment/prepare.sh
+        run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build cross compilation Docker image
+        run: make cross-image-s390x-unknown-linux-gnu
       - name: Build Vector
         env:
           DOCKER_PRIVILEGED: "true"
