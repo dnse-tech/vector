@@ -1,0 +1,197 @@
+name: Publish s390x
+
+# Cross-compiles Vector for s390x on x86_64 self-hosted runners using cross-rs,
+# then builds s390x Docker images via buildx + QEMU and merges with the upstream
+# multi-arch manifest (amd64 + arm).  Upstream publish.yml is untouched so
+# rebasing stays conflict-free.
+#
+# Only debian and distroless-libc flavors are built — alpine and distroless-static
+# require a musl binary which is not available for s390x.
+
+permissions:
+  contents: write
+  packages: write
+
+on:
+  workflow_call:
+    inputs:
+      git_ref:
+        type: string
+        required: true
+      channel:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'Git ref to build'
+        required: true
+        default: 'refs/heads/feat/add-s390x-support'
+      channel:
+        description: 'Release channel (release/nightly/custom)'
+        required: true
+        default: 'custom'
+        type: choice
+        options:
+          - release
+          - nightly
+          - custom
+
+env:
+  VERBOSE: true
+  CI: true
+  DISABLE_MOLD: true
+  DEBIAN_FRONTEND: noninteractive
+  CONTAINER_TOOL: docker
+  CARGO_PROFILE_RELEASE_LTO: fat
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+  CHANNEL: ${{ inputs.channel }}
+
+jobs:
+  generate-publish-metadata:
+    name: Generate Publish-related Metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      vector_version: ${{ steps.generate-publish-metadata.outputs.vector_version }}
+      vector_build_desc: ${{ steps.generate-publish-metadata.outputs.vector_build_desc }}
+      vector_release_channel: ${{ steps.generate-publish-metadata.outputs.vector_release_channel }}
+    steps:
+      - name: Checkout Vector
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ inputs.git_ref }}
+      - name: Generate publish metadata
+        id: generate-publish-metadata
+        run: make ci-generate-publish-metadata
+
+  build-s390x-packages:
+    name: Build Vector for s390x-unknown-linux-gnu
+    # Cross-compilation runs on x86_64 — cross-rs image has linux/amd64 manifests
+    # and produces a native s390x binary without QEMU.
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
+    needs: generate-publish-metadata
+    env:
+      VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
+      VECTOR_BUILD_DESC: ${{ needs.generate-publish-metadata.outputs.vector_build_desc }}
+      CHANNEL: ${{ needs.generate-publish-metadata.outputs.vector_release_channel }}
+    steps:
+      - name: Checkout Vector
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ inputs.git_ref }}
+      - name: Bootstrap runner environment (Ubuntu-specific)
+        run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
+      - name: Bootstrap runner environment (generic)
+        # cross detects host != target and uses the cross-rs Docker image to
+        # cross-compile the s390x binary on this x86_64 host.
+        run: bash scripts/environment/prepare.sh --modules=rustup,cross
+      - name: Build Vector
+        run: make package-s390x-unknown-linux-gnu-all
+      - name: Stage package artifacts for publish
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vector-${{ env.VECTOR_VERSION }}-s390x-unknown-linux-gnu
+          path: target/artifacts/vector*
+
+  publish-docker:
+    name: Publish s390x Docker images
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    needs:
+      - generate-publish-metadata
+      - build-s390x-packages
+    env:
+      VECTOR_VERSION: ${{ needs.generate-publish-metadata.outputs.vector_version }}
+      VECTOR_BUILD_DESC: ${{ needs.generate-publish-metadata.outputs.vector_build_desc }}
+      CHANNEL: ${{ needs.generate-publish-metadata.outputs.vector_release_channel }}
+    steps:
+      - name: Checkout Vector
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ inputs.git_ref }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up QEMU
+        # QEMU is needed so buildx can execute s390x instructions (e.g. dpkg -i
+        # in the Dockerfile builder stage) on this x86_64 host.
+        uses: docker/setup-qemu-action@29109295f81e9208d7d3b96f2063944d6eab9fe4 # v3.6.0
+        with:
+          platforms: s390x
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          version: latest
+          install: true
+      - name: Download staged package artifacts (s390x)
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vector-${{ env.VECTOR_VERSION }}-s390x-unknown-linux-gnu
+          path: target/artifacts
+      - name: Compute version tags for this channel
+        id: tags
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          if [[ "$CHANNEL" == "release" ]]; then
+            MINOR_X=$(echo "$VECTOR_VERSION" | sed 's/\.[0-9]*$/.X/')
+            MAJOR_X=$(echo "$VECTOR_VERSION" | sed 's/\.[0-9]*\.[0-9]*$/.X/')
+            TAGS="$VECTOR_VERSION $MINOR_X $MAJOR_X latest"
+          elif [[ "$CHANNEL" == "nightly" ]]; then
+            TAGS="nightly-$DATE nightly"
+          else
+            TAGS="$VECTOR_VERSION"
+          fi
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+      - name: Build and push s390x Docker images (staging)
+        # buildx + QEMU builds a genuine linux/s390x image on this x86_64 host.
+        # Only debian and distroless-libc: both use the .deb artifact.
+        # alpine and distroless-static require a musl binary unavailable for s390x.
+        # Tagged "<version>-<flavor>-s390x" as staging; combined with upstream below.
+        env:
+          REPO: "ghcr.io/${{ github.repository_owner }}/vector"
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -euo pipefail
+          for FLAVOR in debian distroless-libc; do
+            for TAG in $TAGS; do
+              docker buildx build \
+                --platform linux/s390x \
+                --tag "${REPO}:${TAG}-${FLAVOR}-s390x" \
+                --push \
+                target/artifacts \
+                -f "distribution/docker/${FLAVOR}/Dockerfile"
+            done
+          done
+      - name: Create multi-arch manifests combining upstream amd64 + our s390x
+        # release/nightly: merges upstream vectordotdev manifest (amd64 + arm variants)
+        # with our s390x staging image into a single multi-arch manifest.
+        # custom: no matching upstream image — publishes s390x-only manifest.
+        env:
+          UPSTREAM_REPO: "ghcr.io/vectordotdev/vector"
+          OUR_REPO: "ghcr.io/${{ github.repository_owner }}/vector"
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -euo pipefail
+          for FLAVOR in debian distroless-libc; do
+            for TAG in $TAGS; do
+              FINAL="${OUR_REPO}:${TAG}-${FLAVOR}"
+              S390X_STAGING="${OUR_REPO}:${TAG}-${FLAVOR}-s390x"
+
+              if [[ "$CHANNEL" != "custom" ]]; then
+                docker buildx imagetools create \
+                  --tag "$FINAL" \
+                  "${UPSTREAM_REPO}:${TAG}-${FLAVOR}" \
+                  "$S390X_STAGING"
+              else
+                docker buildx imagetools create \
+                  --tag "$FINAL" \
+                  "$S390X_STAGING"
+              fi
+            done
+          done
