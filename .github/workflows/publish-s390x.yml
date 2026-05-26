@@ -70,6 +70,17 @@ jobs:
     # Cross-compilation runs on x86_64 — cross-rs image has linux/amd64 manifests
     # and produces a native s390x binary without QEMU.
     runs-on: [self-hosted, Linux, X64]
+    # Rocky Linux host has no apt. Run inside Ubuntu so bootstrap and apt work.
+    # Docker socket is passed through so cross-rs and ENVIRONMENT_UPSTREAM
+    # containers launched by the Makefile reach the host Docker daemon.
+    # GitHub Actions mounts the workspace at the same path on host and container
+    # so Makefile volume mounts ($(PWD):/git/...) resolve correctly.
+    container:
+      image: ubuntu:24.04
+      options: --user root -v /var/run/docker.sock:/var/run/docker.sock
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 60
     needs: generate-publish-metadata
     env:
@@ -81,8 +92,15 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.git_ref }}
+      - name: Pre-install docker and nodejs
+        # Pre-install so bootstrap-ubuntu-24.04.sh finds them already present
+        # and skips adding the xenial Docker repo and the nodesource repo
+        # (xenial has no s390x packages; nodesource nodejs lacks corepack).
+        run: |
+          apt-get update --yes
+          apt-get install --yes docker.io nodejs
       - name: Bootstrap runner environment (Ubuntu-specific)
-        run: sudo -E bash scripts/environment/bootstrap-ubuntu-24.04.sh
+        run: bash scripts/environment/bootstrap-ubuntu-24.04.sh
       - name: Bootstrap runner environment (generic)
         # cross detects host != target and uses the cross-rs Docker image to
         # cross-compile the s390x binary on this x86_64 host.
