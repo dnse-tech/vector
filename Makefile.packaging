@@ -61,6 +61,9 @@ package-arm-unknown-linux-gnueabi-all: package-arm-unknown-linux-gnueabi package
 .PHONY: package-arm-unknown-linux-musleabi-all
 package-arm-unknown-linux-musleabi-all: package-arm-unknown-linux-musleabi # .tar.gz
 
+.PHONY: package-s390x-unknown-linux-gnu-all
+package-s390x-unknown-linux-gnu-all: package-s390x-unknown-linux-gnu package-deb-s390x package-rpm-s390x # .tar.gz, .deb, .rpm
+
 .PHONY: package-x86_64-unknown-linux-gnu
 package-x86_64-unknown-linux-gnu: target/artifacts/vector-${VERSION}-x86_64-unknown-linux-gnu.tar.gz ## Build an archive suitable for the `x86_64-unknown-linux-gnu` triple.
 	@echo "Output to ${<}."
@@ -93,6 +96,10 @@ package-arm-unknown-linux-gnueabi: target/artifacts/vector-${VERSION}-arm-unknow
 package-arm-unknown-linux-musleabi: target/artifacts/vector-${VERSION}-arm-unknown-linux-musleabi.tar.gz ## Build an archive suitable for the `arm-unknown-linux-musleabi` triple.
 	@echo "Output to ${<}."
 
+.PHONY: package-s390x-unknown-linux-gnu
+package-s390x-unknown-linux-gnu: target/artifacts/vector-${VERSION}-s390x-unknown-linux-gnu.tar.gz ## Build an archive suitable for the `s390x-unknown-linux-gnu` triple.
+	@echo "Output to ${<}."
+
 # debs
 
 .PHONY: package-deb-x86_64-unknown-linux-gnu
@@ -115,6 +122,10 @@ package-deb-armv7-gnu: package-armv7-unknown-linux-gnueabihf ## Build the armv7-
 package-deb-arm-gnu: package-arm-unknown-linux-gnueabi ## Build the arm-unknown-linux-gnueabi deb package
 	TARGET=arm-unknown-linux-gnueabi $(VDEV) package deb
 
+.PHONY: package-deb-s390x
+package-deb-s390x: package-s390x-unknown-linux-gnu ## Build the s390x-unknown-linux-gnu deb package
+	TARGET=s390x-unknown-linux-gnu $(VDEV) package deb
+
 # rpms
 
 .PHONY: package-rpm-x86_64-unknown-linux-gnu
@@ -132,5 +143,9 @@ package-rpm-aarch64: package-aarch64-unknown-linux-gnu ## Build the aarch64 rpm 
 .PHONY: package-rpm-armv7hl-gnu
 package-rpm-armv7hl-gnu: package-armv7-unknown-linux-gnueabihf ## Build the armv7hl-unknown-linux-gnueabihf rpm package
 	TARGET=armv7-unknown-linux-gnueabihf ARCH=armv7hl $(VDEV) package rpm
+
+.PHONY: package-rpm-s390x
+package-rpm-s390x: package-s390x-unknown-linux-gnu ## Build the s390x-unknown-linux-gnu rpm package
+	TARGET=s390x-unknown-linux-gnu $(VDEV) package rpm
 
 

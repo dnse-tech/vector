@@ -1,0 +1,42 @@
+name: S390x CI
+
+# Native unit test gate for s390x (big-endian). Catches endianness bugs that
+# x86_64-based CI cannot detect. Runs on every PR and master push.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  DISABLE_MOLD: true # mold does not ship s390x binaries
+
+jobs:
+  test-s390x:
+    name: Unit tests (s390x native)
+    runs-on: [self-hosted, Linux, s390x]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libsasl2-dev \
+            protobuf-compiler
+
+      - uses: ./.github/actions/setup
+        with:
+          rust: true
+          cargo-nextest: true
+          protoc: false  # upstream script has no s390x binary; use apt protobuf-compiler above
+          vdev: false    # no s390x vdev binary; not needed for testing
+
+      - name: Run unit tests
+        run: make test FEATURES="default"

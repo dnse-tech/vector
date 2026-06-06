@@ -124,6 +124,10 @@ build-arm-unknown-linux-gnueabi: target/arm-unknown-linux-gnueabi/release/vector
 build-arm-unknown-linux-musleabi: target/arm-unknown-linux-musleabi/release/vector ## Build a release binary for the arm-unknown-linux-musleabi triple.
 	@echo "Output to ${<}"
 
+.PHONY: build-s390x-unknown-linux-gnu
+build-s390x-unknown-linux-gnu: target/s390x-unknown-linux-gnu/release/vector ## Build a release binary for the s390x-unknown-linux-gnu triple.
+	@echo "Output to ${<}"
+
 .PHONY: check-build-tools
 check-build-tools:
 ifeq ($(shell command -v cargo >/dev/null || echo not-found), not-found)
@@ -148,6 +152,7 @@ CROSS_DIGEST_armv7-unknown-linux-gnueabihf  := sha256:73294ebb06e077e49bbbecfe8f
 CROSS_DIGEST_armv7-unknown-linux-musleabihf := sha256:49bdc9a4cf2f1bcb385389c85be8f43c4399fa6d6fe22883702ef13eb921e443
 CROSS_DIGEST_arm-unknown-linux-gnueabi      := sha256:0c70b0e54724bd599dff00a2888f8ea176a5b6c85af47aad9ad25296f63e2967
 CROSS_DIGEST_arm-unknown-linux-musleabi     := sha256:0ca8f4afcc29fb5964aa63e482452e8869311a610c5868f22ded400c4e483328
+CROSS_DIGEST_s390x-unknown-linux-gnu       := sha256:7e1a5bac3f275881425146faf87b78b79ae60e49bcc86f198572501d41299265
 
 # GNU Make < 3.82 pattern matching priority depends on the definition order
 # so cross-image-% must be defined before cross-%
