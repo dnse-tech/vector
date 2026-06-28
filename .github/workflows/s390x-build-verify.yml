@@ -1,0 +1,75 @@
+name: S390x Build Verify
+
+# Manual, focused verification of the native s390x release build + packaging
+# (.tar.gz/.deb/.rpm) on the self-hosted LinuxONE runner. Does NOT publish.
+# Run this before the full publish.yml to confirm the s390x path works in
+# isolation, without spending GitHub-hosted macOS/Windows/cross runner minutes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git ref to build (branch, tag, or SHA). Defaults to this workflow's ref."
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  # Drop debuginfo from the test build: the full default-feature `vector` lib
+  # test target with debuginfo=2 trips the OOM killer (rustc SIGKILL) on the
+  # native runner. The release build keeps fat LTO; swap covers its link peak.
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  # Cap parallel codegen so concurrent rustc processes can't collectively
+  # exhaust RAM. Swap absorbs remaining single-process peaks (e.g. LTO link).
+  CARGO_BUILD_JOBS: "8"
+
+jobs:
+  build-s390x-native:
+    name: Build and test Vector for s390x-unknown-linux-gnu (native)
+    runs-on: [self-hosted, Linux, s390x]
+    timeout-minutes: 240
+    steps:
+      - name: Checkout Vector
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.git_ref }}
+      - name: Ensure swap headroom (avoid OOM during compile/LTO link)
+        run: |
+          # Idempotent on the persistent self-hosted runner: only create the CI
+          # swapfile once. Gives the fat-LTO linker headroom beyond physical RAM.
+          SWAPFILE=/swapfile-ci
+          if ! sudo swapon --show=NAME --noheadings | grep -qx "$SWAPFILE"; then
+            sudo rm -f "$SWAPFILE"
+            sudo fallocate -l 24G "$SWAPFILE" || sudo dd if=/dev/zero of="$SWAPFILE" bs=1M count=24576
+            sudo chmod 600 "$SWAPFILE"
+            sudo mkswap "$SWAPFILE"
+            sudo swapon "$SWAPFILE"
+          fi
+          free -h
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmark-gfm \
+            rpm \
+            libsasl2-dev \
+            protobuf-compiler
+      - uses: ./.github/actions/setup
+        with:
+          rust: true
+          cargo-nextest: true
+          cargo-deb: true
+          protoc: false  # upstream script has no s390x binary; use apt protobuf-compiler above
+          vdev: false    # no s390x vdev binary; cargo vdev is built from source on demand
+      - name: Run unit tests
+        run: make test FEATURES="default"
+      - name: Build and package Vector
+        run: make NATIVE=true package-s390x-unknown-linux-gnu-all
+      - name: Upload s390x artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vector-s390x-unknown-linux-gnu
+          path: target/artifacts/vector*
