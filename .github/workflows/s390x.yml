@@ -14,8 +14,7 @@ permissions:
 
 env:
   CI: true
-  # mold ships s390x binaries since v2.38; the setup action uses $(uname -m) so
-  # it downloads the right tarball automatically. No DISABLE_MOLD needed.
+  DISABLE_MOLD: true # mold does not ship s390x binaries
   # Drop debuginfo from the test build: the full default-feature `vector` lib
   # test target with debuginfo=2 peaks high enough to trip the OOM killer
   # (rustc SIGKILL) on the native runner. No debuginfo => far lower peak RAM.

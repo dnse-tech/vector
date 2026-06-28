@@ -18,6 +18,7 @@ permissions:
 
 env:
   CI: true
+  DISABLE_MOLD: true # mold does not ship s390x binaries
   # Drop debuginfo from the test build: the full default-feature `vector` lib
   # test target with debuginfo=2 trips the OOM killer (rustc SIGKILL) on the
   # native runner. The release build keeps fat LTO; swap covers its link peak.
