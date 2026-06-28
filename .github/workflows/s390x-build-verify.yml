@@ -37,10 +37,11 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.git_ref }}
-          # Preserve the cargo target/ dir between runs on this persistent runner
-          # so the slow fat-LTO release build is reused (cargo refingerprints on
-          # source changes). Avoids a ~1h full rebuild every packaging iteration.
-          clean: false
+          # clean: true (default) wipes the gitignored target/ via git clean each
+          # run. Required on this runner: target/ + the persistent swapfile would
+          # otherwise accumulate and exhaust the 146G disk ("No space left on
+          # device"). A clean build fits comfortably (~75G of 146G used at peak).
+          clean: true
       - name: Ensure swap headroom (avoid OOM during compile/LTO link)
         run: |
           # Idempotent on the persistent self-hosted runner: only create the CI
