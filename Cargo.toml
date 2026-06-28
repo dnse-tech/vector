@@ -95,6 +95,9 @@ depends = "libc6 (>= 2.18)"
 [package.metadata.deb.variants.aarch64-unknown-linux-musl]
 depends = ""
 
+[package.metadata.deb.variants.s390x-unknown-linux-gnu]
+depends = "libc6 (>= 2.17)"
+
 [workspace]
 members = [
   ".",
