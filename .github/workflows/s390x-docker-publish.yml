@@ -1,0 +1,104 @@
+name: S390x Docker Publish
+
+# Build the native s390x Vector docker image on the self-hosted LinuxONE runner
+# (no QEMU), then combine it with upstream's other architectures into a single
+# multiarch manifest published to GHCR. Auth uses the workflow GITHUB_TOKEN
+# (packages: write) — no registry secrets required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git ref to check out for the Dockerfile (branch/tag/SHA)."
+        type: string
+        default: s390x/v0.56.0
+        required: false
+      version:
+        description: "Vector version, e.g. 0.56.0 (manifest is tagged v<version>)."
+        type: string
+        default: "0.56.0"
+        required: true
+      release_tag:
+        description: "GitHub release holding the s390x .deb to package into the image."
+        type: string
+        default: v0.56.0-s390x
+        required: true
+      variant:
+        description: "Base image variant (s390x supports distroless-libc or debian)."
+        type: string
+        default: distroless-libc
+        required: false
+      upstream_image:
+        description: "Upstream multiarch image (amd64/arm64/arm) to combine with."
+        type: string
+        default: timberio/vector
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  CI: true
+
+jobs:
+  s390x-docker:
+    name: Build s390x image and publish multiarch manifest
+    runs-on: [self-hosted, Linux, s390x]
+    timeout-minutes: 60
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/vector
+      VERSION: ${{ inputs.version }}
+      VARIANT: ${{ inputs.variant }}
+      UPSTREAM: ${{ inputs.upstream_image }}
+    steps:
+      - name: Checkout Vector
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.git_ref }}
+
+      - name: Tool versions
+        run: |
+          docker version
+          docker buildx version
+
+      - name: Download s390x .deb from the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p target/artifacts
+          gh release download "${{ inputs.release_tag }}" \
+            -R "${{ github.repository }}" \
+            -p 'vector_*_s390x.deb' \
+            -D target/artifacts
+          ls -l target/artifacts
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push native s390x image
+        run: |
+          set -x
+          ARCH_TAG="$IMAGE:$VERSION-s390x-$VARIANT"
+          docker build \
+            -f "distribution/docker/$VARIANT/Dockerfile" \
+            -t "$ARCH_TAG" \
+            target/artifacts
+          docker push "$ARCH_TAG"
+
+      - name: Inspect upstream multiarch image
+        run: docker buildx imagetools inspect "$UPSTREAM:$VERSION-$VARIANT"
+
+      - name: Create combined multiarch manifest (v<version>)
+        run: |
+          set -x
+          # imagetools create copies the referenced platform images into the
+          # target repo, so the upstream (amd64/arm64/arm) and our native s390x
+          # image are merged into one manifest list under GHCR.
+          docker buildx imagetools create \
+            -t "$IMAGE:v$VERSION" \
+            "$UPSTREAM:$VERSION-$VARIANT" \
+            "$IMAGE:$VERSION-s390x-$VARIANT"
+
+      - name: Verify final manifest platforms
+        run: docker buildx imagetools inspect "$IMAGE:v$VERSION"
