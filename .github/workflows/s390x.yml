@@ -33,10 +33,13 @@ jobs:
 
       - name: Ensure swap headroom (avoid OOM during compile)
         run: |
-          # Idempotent on the persistent self-hosted runner: only create the CI
-          # swapfile once. Gives the linker/codegen headroom beyond physical RAM.
-          SWAPFILE=/swapfile-ci
-          if ! sudo swapon --show=NAME --noheadings | grep -qx "$SWAPFILE"; then
+          # This ~16G-RAM runner needs swap for native compilation. The host
+          # provisions /swapfile (32G); only add a fallback swapfile when the host
+          # has insufficient swap, so we never waste disk on a duplicate.
+          SWAP_KB=$(awk '/SwapTotal/{print $2}' /proc/meminfo)
+          if [ "${SWAP_KB:-0}" -lt 25165824 ]; then  # < 24 GiB active swap
+            SWAPFILE=/swapfile-ci
+            sudo swapoff "$SWAPFILE" 2>/dev/null || true
             sudo rm -f "$SWAPFILE"
             sudo fallocate -l 24G "$SWAPFILE" || sudo dd if=/dev/zero of="$SWAPFILE" bs=1M count=24576
             sudo chmod 600 "$SWAPFILE"
