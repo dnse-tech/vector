@@ -12,6 +12,10 @@ on:
         description: "Git ref to build (branch, tag, or SHA). Defaults to this workflow's ref."
         type: string
         required: false
+      release_version:
+        description: "Override package version (e.g. 0.56.0) for clean release artifact names. Empty = vdev custom version."
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -79,7 +83,11 @@ jobs:
         # deployments. All other tests pass natively.
         run: make test FEATURES="default" SCOPE="-E 'not test(parquet)'"
       - name: Build and package Vector
-        run: make NATIVE=true package-s390x-unknown-linux-gnu-all
+        # release_version (e.g. 0.56.0) overrides the package VERSION for clean
+        # release artifact names; empty falls back to the vdev custom version.
+        run: make NATIVE=true package-s390x-unknown-linux-gnu-all ${RELEASE_VERSION:+VERSION="$RELEASE_VERSION"}
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
       - name: Upload s390x artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
