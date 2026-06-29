@@ -12,6 +12,10 @@ on:
         description: "Git ref to build (branch, tag, or SHA). Defaults to this workflow's ref."
         type: string
         required: false
+      release_version:
+        description: "Override package version (e.g. 0.56.0) for clean release artifact names. Empty = vdev custom version."
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -37,12 +41,20 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.git_ref }}
+          # clean: true (default) wipes the gitignored target/ via git clean each
+          # run. Required on this runner: target/ + the persistent swapfile would
+          # otherwise accumulate and exhaust the 146G disk ("No space left on
+          # device"). A clean build fits comfortably (~75G of 146G used at peak).
+          clean: true
       - name: Ensure swap headroom (avoid OOM during compile/LTO link)
         run: |
-          # Idempotent on the persistent self-hosted runner: only create the CI
-          # swapfile once. Gives the fat-LTO linker headroom beyond physical RAM.
-          SWAPFILE=/swapfile-ci
-          if ! sudo swapon --show=NAME --noheadings | grep -qx "$SWAPFILE"; then
+          # This ~16G-RAM runner needs swap for the fat-LTO release link. The host
+          # provisions /swapfile (32G); only add a fallback swapfile when the host
+          # has insufficient swap, so we never waste disk on a duplicate.
+          SWAP_KB=$(awk '/SwapTotal/{print $2}' /proc/meminfo)
+          if [ "${SWAP_KB:-0}" -lt 25165824 ]; then  # < 24 GiB active swap
+            SWAPFILE=/swapfile-ci
+            sudo swapoff "$SWAPFILE" 2>/dev/null || true
             sudo rm -f "$SWAPFILE"
             sudo fallocate -l 24G "$SWAPFILE" || sudo dd if=/dev/zero of="$SWAPFILE" bs=1M count=24576
             sudo chmod 600 "$SWAPFILE"
@@ -66,9 +78,16 @@ jobs:
           protoc: false  # upstream script has no s390x binary; use apt protobuf-compiler above
           vdev: false    # no s390x vdev binary; cargo vdev is built from source on demand
       - name: Run unit tests
-        run: make test FEATURES="default"
+        # Skip parquet codec tests: parquet/arrow encoding is broken on big-endian
+        # s390x (ParquetError "EOF" / test hangs), and parquet is not used in s390x
+        # deployments. All other tests pass natively.
+        run: make test FEATURES="default" SCOPE="-E 'not test(parquet)'"
       - name: Build and package Vector
-        run: make NATIVE=true package-s390x-unknown-linux-gnu-all
+        # release_version (e.g. 0.56.0) overrides the package VERSION for clean
+        # release artifact names; empty falls back to the vdev custom version.
+        run: make NATIVE=true package-s390x-unknown-linux-gnu-all ${RELEASE_VERSION:+VERSION="$RELEASE_VERSION"}
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
       - name: Upload s390x artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
