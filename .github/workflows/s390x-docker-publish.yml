@@ -66,11 +66,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -x
           mkdir -p target/artifacts
-          gh release download "${{ inputs.release_tag }}" \
-            -R "${{ github.repository }}" \
-            -p 'vector_*_s390x.deb' \
-            -D target/artifacts
+          # gh CLI isn't installed on this runner; resolve the s390x .deb asset's
+          # download URL via the releases API, then fetch it with curl.
+          url=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ inputs.release_tag }}" \
+            | python3 -c "import sys,json; r=json.load(sys.stdin); print(next(a['browser_download_url'] for a in r['assets'] if a['name'].endswith('_s390x.deb')))")
+          echo "Downloading $url"
+          curl -fsSL -o "target/artifacts/$(basename "$url")" "$url"
           ls -l target/artifacts
 
       - name: Log in to GHCR
