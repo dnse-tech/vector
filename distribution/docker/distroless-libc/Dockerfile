@@ -13,9 +13,13 @@ RUN mkdir -p /var/lib/vector
 RUN src=$(dpkg -L zlib1g | grep -E '/libz\.so\.1$') && \
     install -D "$(realpath "$src")" "/staging${src}"
 
+# Use the debian13 (trixie, glibc 2.41) distroless base: the s390x vector binary
+# is built natively on Ubuntu 24.04 (glibc 2.39), so the older cc-debian12 base
+# (glibc 2.36) cannot run it. trixie's glibc satisfies the binary's requirement
+# and matches the trixie builder stage that stages libz above.
 # distroless doesn't use static tags
 # hadolint ignore=DL3007
-FROM gcr.io/distroless/cc-debian12:latest@sha256:aa0b7af67fa8211751ea6e00baa8373ba56cc1417ffc986ec9619bd0e1556b56
+FROM gcr.io/distroless/cc-debian13:latest
 
 # https://github.com/opencontainers/image-spec/blob/main/annotations.md
 LABEL org.opencontainers.image.url="https://vector.dev"
